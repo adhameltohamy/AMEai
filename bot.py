@@ -6,8 +6,8 @@ from PIL import Image
 import pdfplumber
 import docx
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+TELEGRAM_TOKEN = os.getenv("8582844371:AAEzWpkHtmvFgjzeJfZMwrEOcUN0qvGapm0")
+OPENROUTER_API_KEY = os.getenv("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")
 
 memory = {}
 
