@@ -6,18 +6,15 @@ from PIL import Image
 import pdfplumber
 import docx
 
-# قراءة التوكنات من Railway Variables
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# تشغيل Gemini
 genai.configure(api_key=GEMINI_API_KEY)
 
-model = genai.GenerativeModel("gemini-1.5-flash")
+model = genai.GenerativeModel("gemini-1.5-flash-latest")
 
 memory = {}
 
-# رسالة البداية
 async def start(update, context):
     await update.message.reply_text(
         "🤖 بوت ذكاء اصطناعي\n\n"
@@ -28,12 +25,10 @@ async def start(update, context):
         "/reset لمسح المحادثة"
     )
 
-# مسح الذاكرة
 async def reset(update, context):
     memory[update.message.chat_id] = []
     await update.message.reply_text("تم مسح الذاكرة")
 
-# الرد على الرسائل
 async def reply(update, context):
 
     user_id = update.message.chat_id
@@ -49,18 +44,13 @@ async def reply(update, context):
     prompt = " ".join(memory[user_id][-5:])
 
     try:
-
         response = model.generate_content(prompt)
-
         answer = response.text
-
     except Exception as e:
-
-        answer = f"خطأ:\n{e}"
+        answer = str(e)
 
     await update.message.reply_text(answer)
 
-# تحليل الصور
 async def analyze_image(update, context):
 
     await update.message.reply_text("🧠 تحليل الصورة...")
@@ -74,18 +64,13 @@ async def analyze_image(update, context):
     img = Image.open(io.BytesIO(image_bytes))
 
     try:
-
         response = model.generate_content(["اشرح هذه الصورة", img])
-
         answer = response.text
-
     except Exception as e:
-
-        answer = f"خطأ:\n{e}"
+        answer = str(e)
 
     await update.message.reply_text(answer)
 
-# قراءة الملفات
 async def read_document(update, context):
 
     file = await context.bot.get_file(update.message.document.file_id)
@@ -99,40 +84,29 @@ async def read_document(update, context):
     if name.endswith(".pdf"):
 
         with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-
             for page in pdf.pages:
-
                 if page.extract_text():
-
                     text += page.extract_text()
 
     elif name.endswith(".docx"):
 
         doc = docx.Document(io.BytesIO(file_bytes))
-
         for para in doc.paragraphs:
-
             text += para.text
 
     if text == "":
-
         await update.message.reply_text("لم استطع قراءة الملف")
-
         return
 
     try:
-
         response = model.generate_content("لخص النص التالي:\n" + text[:4000])
-
         answer = response.text
-
     except Exception as e:
-
-        answer = f"خطأ:\n{e}"
+        answer = str(e)
 
     await update.message.reply_text(answer)
 
-# تشغيل البوت
+
 app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
