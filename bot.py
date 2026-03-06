@@ -11,7 +11,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-model = genai.GenerativeModel("gemini-1.5-flash-latest")
+model = genai.GenerativeModel("gemini-1.5-flash-8b")
 
 memory = {}
 
@@ -51,6 +51,7 @@ async def reply(update, context):
 
     await update.message.reply_text(answer)
 
+
 async def analyze_image(update, context):
 
     await update.message.reply_text("🧠 تحليل الصورة...")
@@ -70,6 +71,7 @@ async def analyze_image(update, context):
         answer = str(e)
 
     await update.message.reply_text(answer)
+
 
 async def read_document(update, context):
 
@@ -116,6 +118,6 @@ app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, reply))
 app.add_handler(MessageHandler(filters.PHOTO, analyze_image))
 app.add_handler(MessageHandler(filters.Document.ALL, read_document))
 
-print("GEMINI AI BOT RUNNING")
+print("AI BOT RUNNING")
 
 app.run_polling()
