@@ -27,24 +27,31 @@ async def reset(update, context):
 
 async def ask_ai(prompt):
 
-    response = requests.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "HTTP-Referer": "https://example.com",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": "openchat/openchat-7b",
-            "messages": [
-                {"role": "user", "content": prompt}
-            ]
-        }
-    )
+    try:
 
-    data = response.json()
+        response = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "mistralai/mistral-7b-instruct",
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ]
+            }
+        )
 
-    return data["choices"][0]["message"]["content"]
+        data = response.json()
+
+        if "choices" not in data:
+            return str(data)
+
+        return data["choices"][0]["message"]["content"]
+
+    except Exception as e:
+        return str(e)
 
 
 async def reply(update, context):
@@ -61,10 +68,7 @@ async def reply(update, context):
 
     prompt = " ".join(memory[user_id][-5:])
 
-    try:
-        answer = await ask_ai(prompt)
-    except Exception as e:
-        answer = str(e)
+    answer = await ask_ai(prompt)
 
     await update.message.reply_text(answer)
 
@@ -81,10 +85,7 @@ async def analyze_image(update, context):
 
     img = Image.open(io.BytesIO(image_bytes))
 
-    try:
-        answer = await ask_ai("اشرح هذه الصورة بالتفصيل")
-    except Exception as e:
-        answer = str(e)
+    answer = await ask_ai("اشرح هذه الصورة بالتفصيل")
 
     await update.message.reply_text(answer)
 
@@ -116,10 +117,7 @@ async def read_document(update, context):
         await update.message.reply_text("لم استطع قراءة الملف")
         return
 
-    try:
-        answer = await ask_ai("لخص النص التالي:\n" + text[:4000])
-    except Exception as e:
-        answer = str(e)
+    answer = await ask_ai("لخص النص التالي:\n" + text[:4000])
 
     await update.message.reply_text(answer)
 
