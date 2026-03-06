@@ -1,7 +1,6 @@
 import requests
 import io
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters
-import pytesseract
 from PIL import Image
 import pdfplumber
 import docx
@@ -10,7 +9,8 @@ TELEGRAM_TOKEN = "8582844371:AAF4juSijpqKGGgYX1WA7SJHQhlLFMiDRSA"
 HF_TOKEN = "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"
 
 TEXT_API = "https://api-inference.huggingface.co/models/google/flan-t5-large"
-IMAGE_API = "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-large"
+IMAGE_ANALYSIS_API = "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-large"
+IMAGE_GENERATE_API = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2"
 
 headers = {
     "Authorization": f"Bearer {HF_TOKEN}"
@@ -24,13 +24,16 @@ async def start(update, context):
         "يمكنك:\n"
         "📝 كتابة سؤال\n"
         "🖼 ارسال صورة لتحليلها\n"
-        "📄 ارسال PDF او Word لتحليله\n\n"
+        "📄 ارسال PDF او Word لتحليله\n"
+        "🎨 /image لإنشاء صورة\n\n"
         "/reset لمسح المحادثة"
     )
+
 
 async def reset(update, context):
     memory[update.message.chat_id] = []
     await update.message.reply_text("تم مسح الذاكرة")
+
 
 async def reply(update, context):
 
@@ -47,16 +50,22 @@ async def reply(update, context):
     prompt = " ".join(memory[user_id][-3:])
 
     try:
+
         response = requests.post(
             TEXT_API,
             headers=headers,
             json={"inputs": prompt}
         )
 
-        answer = response.json()[0]["generated_text"]
+        data = response.json()
+
+        if isinstance(data, list):
+            answer = data[0]["generated_text"]
+        else:
+            answer = "⏳ النموذج يتم تحميله الآن، حاول بعد قليل."
 
     except:
-        answer = "حدث خطأ"
+        answer = "❌ حدث خطأ"
 
     await update.message.reply_text(answer)
 
@@ -70,7 +79,7 @@ async def analyze_image(update, context):
     image_bytes = await file.download_as_bytearray()
 
     response = requests.post(
-        IMAGE_API,
+        IMAGE_ANALYSIS_API,
         headers=headers,
         data=image_bytes
     )
@@ -80,22 +89,24 @@ async def analyze_image(update, context):
     except:
         caption = "لم استطع فهم الصورة"
 
-    await update.message.reply_text(caption)
+    await update.message.reply_text(f"📷 وصف الصورة:\n{caption}")
 
 
-async def ocr_image(update, context):
+async def generate_image(update, context):
 
-    photo = update.message.photo[-1]
-    file = await context.bot.get_file(photo.file_id)
-    image_bytes = await file.download_as_bytearray()
+    prompt = update.message.text.replace("/image ", "")
 
-    image = Image.open(io.BytesIO(image_bytes))
-    text = pytesseract.image_to_string(image)
+    await update.message.reply_text("🎨 جاري إنشاء الصورة...")
 
-    if text.strip() == "":
-        text = "لم يتم العثور على نص في الصورة"
+    response = requests.post(
+        IMAGE_GENERATE_API,
+        headers=headers,
+        json={"inputs": prompt}
+    )
 
-    await update.message.reply_text(text)
+    image_bytes = response.content
+
+    await update.message.reply_photo(photo=image_bytes)
 
 
 async def read_document(update, context):
@@ -111,13 +122,14 @@ async def read_document(update, context):
 
         with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
             for page in pdf.pages:
-                text += page.extract_text() + "\n"
+                if page.extract_text():
+                    text += page.extract_text()
 
     elif name.endswith(".docx"):
 
         doc = docx.Document(io.BytesIO(file_bytes))
         for para in doc.paragraphs:
-            text += para.text + "\n"
+            text += para.text
 
     if text == "":
         text = "لم استطع قراءة الملف"
@@ -129,8 +141,9 @@ app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("reset", reset))
+app.add_handler(CommandHandler("image", generate_image))
 
-app.add_handler(MessageHandler(filters.TEXT, reply))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, reply))
 app.add_handler(MessageHandler(filters.PHOTO, analyze_image))
 app.add_handler(MessageHandler(filters.Document.ALL, read_document))
 
