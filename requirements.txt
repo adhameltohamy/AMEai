@@ -1,5 +1,5 @@
 python-telegram-bot
-google-generativeai>=0.7.0
+requests
 pillow
 pdfplumber
 python-docx
