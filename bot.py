@@ -19,6 +19,7 @@ headers = {
 memory = {}
 
 async def start(update, context):
+
     await update.message.reply_text(
         "🤖 بوت ذكاء اصطناعي\n\n"
         "يمكنك:\n"
@@ -31,7 +32,9 @@ async def start(update, context):
 
 
 async def reset(update, context):
+
     memory[update.message.chat_id] = []
+
     await update.message.reply_text("تم مسح الذاكرة")
 
 
@@ -54,18 +57,25 @@ async def reply(update, context):
         response = requests.post(
             TEXT_API,
             headers=headers,
-            json={"inputs": prompt}
+            json={
+                "inputs": prompt,
+                "options": {"wait_for_model": True}
+            }
         )
 
         data = response.json()
 
         if isinstance(data, list):
+
             answer = data[0]["generated_text"]
+
         else:
-            answer = "⏳ النموذج يتم تحميله الآن، حاول بعد قليل."
+
+            answer = "حدث خطأ حاول مرة أخرى"
 
     except:
-        answer = "❌ حدث خطأ"
+
+        answer = "❌ خطأ في الاتصال"
 
     await update.message.reply_text(answer)
 
@@ -75,7 +85,9 @@ async def analyze_image(update, context):
     await update.message.reply_text("🧠 تحليل الصورة...")
 
     photo = update.message.photo[-1]
+
     file = await context.bot.get_file(photo.file_id)
+
     image_bytes = await file.download_as_bytearray()
 
     response = requests.post(
@@ -85,8 +97,11 @@ async def analyze_image(update, context):
     )
 
     try:
+
         caption = response.json()[0]["generated_text"]
+
     except:
+
         caption = "لم استطع فهم الصورة"
 
     await update.message.reply_text(f"📷 وصف الصورة:\n{caption}")
@@ -101,7 +116,10 @@ async def generate_image(update, context):
     response = requests.post(
         IMAGE_GENERATE_API,
         headers=headers,
-        json={"inputs": prompt}
+        json={
+            "inputs": prompt,
+            "options": {"wait_for_model": True}
+        }
     )
 
     image_bytes = response.content
@@ -112,6 +130,7 @@ async def generate_image(update, context):
 async def read_document(update, context):
 
     file = await context.bot.get_file(update.message.document.file_id)
+
     file_bytes = await file.download_as_bytearray()
 
     name = update.message.document.file_name
@@ -121,17 +140,23 @@ async def read_document(update, context):
     if name.endswith(".pdf"):
 
         with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+
             for page in pdf.pages:
+
                 if page.extract_text():
+
                     text += page.extract_text()
 
     elif name.endswith(".docx"):
 
         doc = docx.Document(io.BytesIO(file_bytes))
+
         for para in doc.paragraphs:
+
             text += para.text
 
     if text == "":
+
         text = "لم استطع قراءة الملف"
 
     await update.message.reply_text(text[:3000])
