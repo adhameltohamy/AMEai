@@ -1,5 +1,5 @@
 import os
-import google.generativeai as genai
+import requests
 import io
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters
 from PIL import Image
@@ -7,16 +7,12 @@ import pdfplumber
 import docx
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-
-genai.configure(api_key=GEMINI_API_KEY)
-
-# النموذج الصحيح
-model = genai.GenerativeModel("gemini-pro")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 memory = {}
 
 async def start(update, context):
+
     await update.message.reply_text(
         "🤖 بوت ذكاء اصطناعي\n\n"
         "يمكنك:\n"
@@ -27,8 +23,28 @@ async def start(update, context):
     )
 
 async def reset(update, context):
+
     memory[update.message.chat_id] = []
+
     await update.message.reply_text("تم مسح الذاكرة")
+
+async def ask_ai(prompt):
+
+    response = requests.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": "mistralai/mistral-7b-instruct",
+            "messages": [
+                {"role": "user", "content": prompt}
+            ]
+        }
+    )
+
+    return response.json()["choices"][0]["message"]["content"]
 
 async def reply(update, context):
 
@@ -45,13 +61,14 @@ async def reply(update, context):
     prompt = " ".join(memory[user_id][-5:])
 
     try:
-        response = model.generate_content(prompt)
-        answer = response.text
+
+        answer = await ask_ai(prompt)
+
     except Exception as e:
+
         answer = str(e)
 
     await update.message.reply_text(answer)
-
 
 async def analyze_image(update, context):
 
@@ -66,13 +83,16 @@ async def analyze_image(update, context):
     img = Image.open(io.BytesIO(image_bytes))
 
     try:
-        response = model.generate_content(["اشرح هذه الصورة", img])
-        answer = response.text
+
+        answer = await ask_ai(
+            "اشرح هذه الصورة بالتفصيل"
+        )
+
     except Exception as e:
+
         answer = str(e)
 
     await update.message.reply_text(answer)
-
 
 async def read_document(update, context):
 
@@ -87,28 +107,38 @@ async def read_document(update, context):
     if name.endswith(".pdf"):
 
         with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+
             for page in pdf.pages:
+
                 if page.extract_text():
+
                     text += page.extract_text()
 
     elif name.endswith(".docx"):
 
         doc = docx.Document(io.BytesIO(file_bytes))
+
         for para in doc.paragraphs:
+
             text += para.text
 
     if text == "":
+
         await update.message.reply_text("لم استطع قراءة الملف")
+
         return
 
     try:
-        response = model.generate_content("لخص النص التالي:\n" + text[:4000])
-        answer = response.text
+
+        answer = await ask_ai(
+            "لخص النص التالي:\n" + text[:4000]
+        )
+
     except Exception as e:
+
         answer = str(e)
 
     await update.message.reply_text(answer)
-
 
 app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
