@@ -1,41 +1,139 @@
-import telebot
-import yt_dlp
-import os
+import requests
+import io
+from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters
+import pytesseract
+from PIL import Image
+import pdfplumber
+import docx
 
-8744352264:AAGEWNK6AcrKKatWFnPhtACY2x070buKklM
-API_TOKEN = '8744352264:AAGEWNK6AcrKKatWFnPhtACY2x070buKklM'
-bot = telebot.TeleBot(API_TOKEN)
+TELEGRAM_TOKEN = "8582844371:AAF4juSijpqKGGgYX1WA7SJHQhlLFMiDRSA"
+HF_TOKEN = "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"
 
-@bot.message_handler(commands=['start', 'help'])
-def send_welcome(message):
-    bot.reply_to(message, "أهلاً بك! أرسل لي رابط الفيديو (يوتيوب، فيسبوك، انستجرام...) وسأقوم بتحميله لك.")
+TEXT_API = "https://api-inference.huggingface.co/models/google/flan-t5-large"
+IMAGE_API = "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-large"
 
-@bot.message_handler(func=lambda message: True)
-def download_video(message):
-    url = message.text
-    bot.reply_to(message, "جاري معالجة الرابط، انتظر قليلاً... ⏳")
+headers = {
+    "Authorization": f"Bearer {HF_TOKEN}"
+}
 
-    # إعدادات yt-dlp
-    ydl_opts = {
-        'format': 'best',
-        'outtmpl': 'video.%(ext)s', # اسم الملف المؤقت
-        'quiet': True,
-    }
+memory = {}
+
+async def start(update, context):
+    await update.message.reply_text(
+        "🤖 بوت ذكاء اصطناعي\n\n"
+        "يمكنك:\n"
+        "📝 كتابة سؤال\n"
+        "🖼 ارسال صورة لتحليلها\n"
+        "📄 ارسال PDF او Word لتحليله\n\n"
+        "/reset لمسح المحادثة"
+    )
+
+async def reset(update, context):
+    memory[update.message.chat_id] = []
+    await update.message.reply_text("تم مسح الذاكرة")
+
+async def reply(update, context):
+
+    user_id = update.message.chat_id
+    text = update.message.text
+
+    await update.message.reply_text("🤖 جاري التفكير...")
+
+    if user_id not in memory:
+        memory[user_id] = []
+
+    memory[user_id].append(text)
+
+    prompt = " ".join(memory[user_id][-3:])
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
-            
-            # إرسال الفيديو للمستخدم
-            with open(filename, 'rb') as video:
-                bot.send_video(message.chat.id, video, caption="تم التحميل بواسطة بوتك الخاص! ✅")
-            
-            # حذف الملف من السيرفر بعد الإرسال لتوفير المساحة
-            os.remove(filename)
+        response = requests.post(
+            TEXT_API,
+            headers=headers,
+            json={"inputs": prompt}
+        )
 
-    except Exception as e:
-        bot.reply_to(message, f"عذراً، حدث خطأ أثناء التحميل: {str(e)}")
+        answer = response.json()[0]["generated_text"]
 
-print("البوت يعمل الآن...")
-bot.infinity_polling()
+    except:
+        answer = "حدث خطأ"
+
+    await update.message.reply_text(answer)
+
+
+async def analyze_image(update, context):
+
+    await update.message.reply_text("🧠 تحليل الصورة...")
+
+    photo = update.message.photo[-1]
+    file = await context.bot.get_file(photo.file_id)
+    image_bytes = await file.download_as_bytearray()
+
+    response = requests.post(
+        IMAGE_API,
+        headers=headers,
+        data=image_bytes
+    )
+
+    try:
+        caption = response.json()[0]["generated_text"]
+    except:
+        caption = "لم استطع فهم الصورة"
+
+    await update.message.reply_text(caption)
+
+
+async def ocr_image(update, context):
+
+    photo = update.message.photo[-1]
+    file = await context.bot.get_file(photo.file_id)
+    image_bytes = await file.download_as_bytearray()
+
+    image = Image.open(io.BytesIO(image_bytes))
+    text = pytesseract.image_to_string(image)
+
+    if text.strip() == "":
+        text = "لم يتم العثور على نص في الصورة"
+
+    await update.message.reply_text(text)
+
+
+async def read_document(update, context):
+
+    file = await context.bot.get_file(update.message.document.file_id)
+    file_bytes = await file.download_as_bytearray()
+
+    name = update.message.document.file_name
+
+    text = ""
+
+    if name.endswith(".pdf"):
+
+        with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+            for page in pdf.pages:
+                text += page.extract_text() + "\n"
+
+    elif name.endswith(".docx"):
+
+        doc = docx.Document(io.BytesIO(file_bytes))
+        for para in doc.paragraphs:
+            text += para.text + "\n"
+
+    if text == "":
+        text = "لم استطع قراءة الملف"
+
+    await update.message.reply_text(text[:3000])
+
+
+app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("reset", reset))
+
+app.add_handler(MessageHandler(filters.TEXT, reply))
+app.add_handler(MessageHandler(filters.PHOTO, analyze_image))
+app.add_handler(MessageHandler(filters.Document.ALL, read_document))
+
+print("AI BOT RUNNING")
+
+app.run_polling()
