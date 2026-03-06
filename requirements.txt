@@ -1,6 +1,5 @@
 python-telegram-bot
 requests
 pillow
-pytesseract
 pdfplumber
 python-docx
