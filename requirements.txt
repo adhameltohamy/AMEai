@@ -1,5 +1,6 @@
 python-telegram-bot
-requests
+google-generativeai
 pillow
 pdfplumber
 python-docx
+requests
