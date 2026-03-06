@@ -6,7 +6,7 @@ import pdfplumber
 import docx
 
 TELEGRAM_TOKEN = "8582844371:AAF4juSijpqKGGgYX1WA7SJHQhlLFMiDRSA"
-HF_TOKEN = "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"
+HF_TOKEN = "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"
 
 TEXT_API = "https://api-inference.huggingface.co/models/google/flan-t5-large"
 IMAGE_ANALYSIS_API = "https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-large"
